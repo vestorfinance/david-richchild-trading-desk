@@ -104,7 +104,7 @@ if ($action === 'pull') {
         exit;
     }
 
-    exec('sudo bash ' . escapeshellarg($script) . ' 2>&1', $out, $exit_code);
+    exec('sudo ' . escapeshellarg($script) . ' 2>&1', $out, $exit_code);
     $output = implode("\n", $out);
 
     if ($exit_code !== 0) {
