@@ -24,48 +24,48 @@ $app_dir = realpath(__DIR__ . '/..');
 
 // ── Check for updates ────────────────────────────────────────────────────────
 if ($action === 'check') {
-    // www-data needs a writable HOME for git commands
-    putenv('HOME=/tmp');
-
-    // Verify we're inside a git repo and get local HEAD SHA
-    exec('git -C ' . escapeshellarg($app_dir) . ' rev-parse HEAD 2>/dev/null', $head_out, $code);
-    if ($code !== 0 || empty($head_out[0])) {
+    // Check exec() is usable
+    $exec_disabled = in_array('exec', array_map('trim', explode(',', ini_get('disable_functions'))));
+    if ($exec_disabled) {
         echo json_encode(['ok' => true, 'has_update' => false, 'git_available' => false]);
         exit;
     }
-    $local = trim($head_out[0]);
 
-    // Rate-limit remote checks to once every 5 minutes
+    // www-data needs HOME for git config; set PATH so git/curl are findable
+    $env = 'HOME=/tmp GIT_TERMINAL_PROMPT=0 GIT_ASKPASS=echo ';
+    $cd  = 'cd ' . escapeshellarg($app_dir);
+    $sep = ' && ';
+
+    // Rate-limit fetches to once every 5 minutes
     $cache_file = sys_get_temp_dir() . '/td_update_check';
     $cache_data = (file_exists($cache_file) && is_readable($cache_file))
         ? json_decode(file_get_contents($cache_file), true)
         : [];
     $last_check = (int) ($cache_data['ts'] ?? 0);
-    $remote     = $cache_data['sha'] ?? '';
 
-    if (time() - $last_check > 300 || !$remote) {
-        // Use curl (exec) — file_get_contents HTTPS is unreliable as www-data
-        exec('git -C ' . escapeshellarg($app_dir) . ' config --get remote.origin.url 2>/dev/null', $url_out);
-        $origin = trim($url_out[0] ?? '');
-        $remote = '';
+    if (time() - $last_check > 300) {
+        exec($env . $cd . $sep . 'git fetch origin 2>/dev/null', $fetch_out, $fetch_code);
+        @file_put_contents($cache_file, json_encode(['ts' => time()]));
+        @chmod($cache_file, 0666);
+    }
 
-        if (preg_match('#github\.com[:/]([^/]+/[^/]+?)(?:\.git)?$#', $origin, $m)) {
-            $api_url = 'https://api.github.com/repos/' . $m[1] . '/commits/main';
-            exec(
-                '/usr/bin/curl -sf --max-time 8 -H ' . escapeshellarg('User-Agent: trading-desk-update-check') .
-                ' ' . escapeshellarg($api_url) . ' 2>/dev/null',
-                $curl_out
-            );
-            $body = implode('', $curl_out);
-            if ($body) {
-                $gh     = json_decode($body, true);
-                $remote = $gh['sha'] ?? '';
-            }
-        }
+    // Local HEAD
+    exec($env . $cd . $sep . 'git rev-parse HEAD 2>/dev/null', $local_out, $local_code);
+    $local = trim($local_out[0] ?? '');
+    if (!$local || $local_code !== 0) {
+        echo json_encode(['ok' => true, 'has_update' => false, 'git_available' => false]);
+        exit;
+    }
 
-        if ($remote) {
-            @file_put_contents($cache_file, json_encode(['ts' => time(), 'sha' => $remote]));
-            @chmod($cache_file, 0666);
+    // Remote HEAD — try origin/main, origin/HEAD, origin/master
+    $remote = '';
+    foreach (['origin/main', 'origin/HEAD', 'origin/master'] as $ref) {
+        $ref_out = [];
+        exec($env . $cd . $sep . 'git rev-parse ' . escapeshellarg($ref) . ' 2>/dev/null', $ref_out, $ref_code);
+        $val = trim($ref_out[0] ?? '');
+        if ($ref_code === 0 && preg_match('/^[0-9a-f]{40}$/i', $val)) {
+            $remote = $val;
+            break;
         }
     }
 
@@ -78,11 +78,8 @@ if ($action === 'check') {
     $commits_behind = 0;
 
     if ($has_update) {
-        exec('/usr/bin/curl -sf --max-time 8 -H ' . escapeshellarg('User-Agent: trading-desk-update-check') .
-            ' https://api.github.com/repos/' . $m[1] . '/compare/' . $local . '...' . $remote .
-            ' 2>/dev/null', $cmp_out);
-        $cmp = json_decode(implode('', $cmp_out), true);
-        $commits_behind = (int) ($cmp['behind_by'] ?? 0);
+        exec($env . $cd . $sep . 'git rev-list ' . escapeshellarg($local) . '..' . escapeshellarg($remote) . ' --count 2>/dev/null', $cnt_out);
+        $commits_behind = (int) trim($cnt_out[0] ?? '0');
     }
 
     echo json_encode([
