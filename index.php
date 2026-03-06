@@ -1,5 +1,5 @@
 <?php
-// v2026.03.06b
+// v2026.03.06c
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/db.php';
 
