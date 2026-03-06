@@ -22,6 +22,7 @@ echo "After   : $(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
 # Run migrations — find whichever php binary is available
 PHP_BIN=$(command -v php8.3 2>/dev/null \
        || command -v php8.2 2>/dev/null \
+       || command -v php8.1 2>/dev/null \
        || command -v php    2>/dev/null \
        || echo "")
 
