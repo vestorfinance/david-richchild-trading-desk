@@ -1,0 +1,417 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trading Desk - Ubuntu + Caddy Install Guide</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: #0f0f0f;
+    color: #e2e8f0;
+    padding: 2.5rem 1.5rem;
+    min-height: 100vh;
+  }
+  .page { max-width: 860px; margin: 0 auto; }
+  .page-header { margin-bottom: 2.5rem; }
+  .page-header h1 { font-size: 1.8rem; font-weight: 700; color: #fff; }
+  .page-header p  { color: #64748b; margin-top: 0.3rem; font-size: 0.9rem; }
+
+  .config-card {
+    background: #161625;
+    border: 1px solid #2a2a45;
+    border-radius: 14px;
+    padding: 1.5rem;
+    margin-bottom: 2.5rem;
+  }
+  .config-card h2 {
+    font-size: 0.75rem; font-weight: 700; color: #6366f1;
+    text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 1.1rem;
+  }
+  .form-row { display: grid; grid-template-columns: repeat(3,1fr); gap: 1rem; }
+  .form-group label {
+    display: block; font-size: 0.78rem; color: #94a3b8;
+    margin-bottom: 0.4rem; font-weight: 500;
+  }
+  .form-group input {
+    width: 100%; background: #0f0f0f; border: 1px solid #2a2a45;
+    border-radius: 8px; padding: 0.6rem 0.9rem; color: #e2e8f0;
+    font-size: 0.9rem; outline: none; transition: border-color 0.15s; font-family: inherit;
+  }
+  .form-group input:focus { border-color: #6366f1; }
+  .form-group input::placeholder { color: #3d4660; }
+
+  .step { margin-bottom: 1.75rem; }
+  .step-header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.65rem; flex-wrap: wrap; }
+  .step-num {
+    width: 28px; height: 28px; border-radius: 50%; background: #4f46e5; color: #fff;
+    font-size: 0.78rem; font-weight: 700; display: flex; align-items: center;
+    justify-content: center; flex-shrink: 0;
+  }
+  .step-num.purple { background: #7c3aed; }
+  .step-title { font-weight: 600; font-size: 0.97rem; color: #e2e8f0; flex: 1; }
+
+  .badge { font-size: 0.68rem; font-weight: 700; padding: 0.22rem 0.55rem; border-radius: 5px; letter-spacing: 0.04em; }
+  .badge-local  { background: #1e3a5f; color: #60a5fa; }
+  .badge-server { background: #14291a; color: #4ade80; }
+  .badge-opt    { background: #1c1c1c; color: #94a3b8; }
+
+  .code-block { position: relative; background: #0a0a14; border: 1px solid #1e1e35; border-radius: 10px; overflow: hidden; }
+  .code-block pre {
+    padding: 1rem 1.25rem; padding-right: 5.5rem;
+    font-family: 'Cascadia Code','Fira Code','Consolas','Courier New',monospace;
+    font-size: 0.8rem; line-height: 1.75; color: #a5f3fc;
+    overflow-x: auto; white-space: pre; tab-size: 2;
+  }
+  .copy-btn {
+    position: absolute; top: 0.6rem; right: 0.6rem;
+    background: #1e293b; border: 1px solid #334155; border-radius: 6px;
+    color: #94a3b8; font-size: 0.72rem; font-weight: 600;
+    padding: 0.3rem 0.8rem; cursor: pointer; transition: all 0.15s; font-family: inherit;
+  }
+  .copy-btn:hover  { background: #334155; color: #e2e8f0; }
+  .copy-btn.copied { background: #064e3b; border-color: #10b981; color: #10b981; }
+
+  .info-box { border-radius: 8px; padding: 0.7rem 1rem; font-size: 0.82rem; line-height: 1.55; margin-top: 0.55rem; }
+  .info-box.blue  { background: #0f2040; border: 1px solid #1e3a5f; color: #93c5fd; }
+  .info-box.green { background: #052e16; border: 1px solid #065f46; color: #6ee7b7; }
+  .info-box strong { font-weight: 600; }
+
+  hr.divider { border: none; border-top: 1px solid #1e1e2e; margin: 2rem 0; }
+
+  @media (max-width: 580px) {
+    .form-row { grid-template-columns: 1fr; }
+    body { padding: 1.25rem 1rem; }
+    .code-block pre { font-size: 0.72rem; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="page-header">
+    <h1>Trading Desk</h1>
+    <p>Ubuntu + Caddy install guide &mdash; open this file locally, fill in your details, copy &amp; paste each step.</p>
+  </div>
+
+  <div class="config-card">
+    <h2>Your Server Details</h2>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Domain</label>
+        <input type="text" id="inp-domain" placeholder="trade.example.com" oninput="refresh()">
+      </div>
+      <div class="form-group">
+        <label>SSH Username</label>
+        <input type="text" id="inp-user" placeholder="ubuntu" oninput="refresh()">
+      </div>
+      <div class="form-group">
+        <label>Server IP</label>
+        <input type="text" id="inp-ip" placeholder="1.2.3.4" oninput="refresh()">
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 1 -->
+  <div class="step">
+    <div class="step-header">
+      <div class="step-num">1</div>
+      <div class="step-title">SSH into the server</div>
+      <span class="badge badge-local">LOCAL</span>
+    </div>
+    <div class="code-block"><pre id="cmd1"></pre><button class="copy-btn" onclick="cp('cmd1',this)">Copy</button></div>
+  </div>
+
+  <hr class="divider">
+
+  <!-- Step 2 -->
+  <div class="step">
+    <div class="step-header">
+      <div class="step-num">2</div>
+      <div class="step-title">Install git &amp; PHP-FPM (skips if already installed)</div>
+      <span class="badge badge-server">SERVER</span>
+    </div>
+    <div class="info-box blue">All steps from here run <strong>on the server</strong> inside the SSH session.</div>
+    <div class="code-block" style="margin-top:0.6rem"><pre id="cmd2"></pre><button class="copy-btn" onclick="cp('cmd2',this)">Copy</button></div>
+  </div>
+
+  <!-- Step 3 -->
+  <div class="step">
+    <div class="step-header">
+      <div class="step-num">3</div>
+      <div class="step-title">Install Caddy (skips if already installed)</div>
+      <span class="badge badge-server">SERVER</span>
+    </div>
+    <div class="code-block"><pre id="cmd3"></pre><button class="copy-btn" onclick="cp('cmd3',this)">Copy</button></div>
+  </div>
+
+  <!-- Step 4 -->
+  <div class="step">
+    <div class="step-header">
+      <div class="step-num">4</div>
+      <div class="step-title">Clone repository from GitHub</div>
+      <span class="badge badge-server">SERVER</span>
+    </div>
+    <div class="code-block"><pre id="cmd4"></pre><button class="copy-btn" onclick="cp('cmd4',this)">Copy</button></div>
+  </div>
+
+  <!-- Step 5 -->
+  <div class="step">
+    <div class="step-header">
+      <div class="step-num">5</div>
+      <div class="step-title">Set permissions &amp; allow www-data to git pull</div>
+      <span class="badge badge-server">SERVER</span>
+    </div>
+    <div class="code-block"><pre id="cmd5"></pre><button class="copy-btn" onclick="cp('cmd5',this)">Copy</button></div>
+  </div>
+
+  <!-- Step 6 -->
+  <div class="step">
+    <div class="step-header">
+      <div class="step-num">6</div>
+      <div class="step-title">Append Trading Desk site block to Caddyfile</div>
+      <span class="badge badge-server">SERVER</span>
+    </div>
+    <div class="info-box blue">Uses <strong>tee -a</strong> (append) - existing sites in your Caddyfile are untouched.</div>
+    <div class="code-block" style="margin-top:0.6rem"><pre id="cmd6"></pre><button class="copy-btn" onclick="cp('cmd6',this)">Copy</button></div>
+  </div>
+
+  <!-- Step 7 -->
+  <div class="step">
+    <div class="step-header">
+      <div class="step-num">7</div>
+      <div class="step-title">Start PHP-FPM &amp; reload Caddy</div>
+      <span class="badge badge-server">SERVER</span>
+    </div>
+    <div class="code-block"><pre id="cmd7"></pre><button class="copy-btn" onclick="cp('cmd7',this)">Copy</button></div>
+  </div>
+
+  <!-- Step 8 -->
+  <div class="step">
+    <div class="step-header">
+      <div class="step-num">8</div>
+      <div class="step-title">Open firewall ports</div>
+      <span class="badge badge-opt">SERVER &bull; optional - only if ufw is active</span>
+    </div>
+    <div class="code-block"><pre id="cmd8"></pre><button class="copy-btn" onclick="cp('cmd8',this)">Copy</button></div>
+  </div>
+
+  <!-- Step 9 -->
+  <div class="step">
+    <div class="step-header">
+      <div class="step-num">9</div>
+      <div class="step-title">Verify installation</div>
+      <span class="badge badge-server">SERVER</span>
+    </div>
+    <div class="code-block"><pre id="cmd9"></pre><button class="copy-btn" onclick="cp('cmd9',this)">Copy</button></div>
+    <div class="info-box green" style="margin-top:0.6rem">
+      Caddy auto-provisions HTTPS via Let&rsquo;s Encrypt. Make sure your DNS A record points to
+      <strong id="show-ip">1.2.3.4</strong> before visiting.
+      The SQLite database is created automatically on first page load.
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <!-- EA -->
+  <div class="step">
+    <div class="step-header">
+      <div class="step-num purple">EA</div>
+      <div class="step-title">Update the EA InpBaseURL in MetaTrader</div>
+    </div>
+    <div class="code-block"><pre id="cmd-ea"></pre><button class="copy-btn" onclick="cp('cmd-ea',this)">Copy</button></div>
+    <div class="info-box blue" style="margin-top:0.6rem">
+      MetaTrader &rarr; <strong>Tools &rarr; Options &rarr; Expert Advisors</strong> &rarr; add
+      <strong id="show-url">https://your-domain.com</strong> to the allowed URLs list.
+      Set <strong>InpBaseURL</strong> on the EA to the same value.
+    </div>
+  </div>
+
+</div>
+
+<script>
+// --- helpers ---------------------------------------------------------------
+function v(id, fb) { return document.getElementById(id).value.trim() || fb; }
+
+// Shell PHP-detection snippet reused across several steps.
+// Inside JS template literals, bash ${VAR} MUST be written \${VAR} so JS
+// does not try to interpolate them as template expressions.
+const DET = [
+  '# Auto-detect installed PHP-FPM version (8.3 / 8.2 / 8.1)',
+  'detect_php() {',
+  '  for ver in 8.3 8.2 8.1; do',
+  '    if systemctl list-unit-files php${ver}-fpm.service 2>/dev/null \\',
+  '       | grep -q "php${ver}-fpm"; then',
+  '      echo $ver; return',
+  '    fi',
+  '  done',
+  '  echo ""; return 1',
+  '}',
+  'PHP_VER=$(detect_php)',
+].join('\n');
+
+const REPO = 'https://github.com/vestorfinance/david-richchild-trading-desk.git';
+
+function refresh() {
+  const domain = v('inp-domain', 'your-domain.com');
+  const user   = v('inp-user',   'ubuntu');
+  const ip     = v('inp-ip',     '1.2.3.4');
+
+  // Build each command as a plain string - no template-literal shell confusion.
+  const C = {};
+
+  // -- 1: SSH ----------------------------------------------------------------
+  C['cmd1'] = 'ssh ' + user + '@' + ip;
+
+  // -- 2: PHP install / detect -----------------------------------------------
+  C['cmd2'] = DET + `
+if [ -z "$PHP_VER" ]; then
+  echo "No PHP-FPM found - installing PHP 8.3..."
+  sudo apt update
+  sudo apt install -y software-properties-common
+  sudo add-apt-repository -y ppa:ondrej/php
+  sudo apt update
+  sudo apt install -y php8.3-fpm php8.3-sqlite3 php8.3-cli git
+  PHP_VER=8.3
+else
+  echo "PHP $PHP_VER FPM already installed - skipping."
+  sudo apt install -y php$PHP_VER-sqlite3 php$PHP_VER-cli git 2>/dev/null || true
+fi
+echo "Using PHP: $PHP_VER"
+php --version
+git --version`;
+
+  // -- 3: Caddy --------------------------------------------------------------
+  C['cmd3'] =
+`if ! command -v caddy &>/dev/null; then
+  sudo apt install -y debian-keyring debian-archive-keyring apt-transport-https curl
+  curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' \\
+    | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+  curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' \\
+    | sudo tee /etc/apt/sources.list.d/caddy-stable.list
+  sudo apt update
+  sudo apt install -y caddy
+  echo "Caddy installed: $(caddy version)"
+else
+  echo "Caddy already installed: $(caddy version)"
+fi`;
+
+  // -- 4: Clone repo ---------------------------------------------------------
+  C['cmd4'] =
+`sudo git clone ` + REPO + ` /var/www/trading-desk
+echo "Cloned into /var/www/trading-desk"`;
+
+  // -- 5: Permissions --------------------------------------------------------
+  C['cmd5'] =
+`sudo chown -R www-data:www-data /var/www/trading-desk
+sudo chmod -R 755 /var/www/trading-desk
+sudo chmod 775 /var/www/trading-desk
+sudo chmod +x /var/www/trading-desk/update.sh
+sudo -u www-data git config --global safe.directory /var/www/trading-desk
+echo "Permissions OK"`;
+
+  // -- 6: Caddyfile block ----------------------------------------------------
+  // heredoc WITHOUT quoted delimiter so $PHP_SOCK is expanded by the shell.
+  // The regex end-anchor $ in path_regexp is escaped \$ to survive the heredoc.
+  C['cmd6'] = DET + `
+if [ -z "$PHP_VER" ]; then echo "ERROR: PHP not found"; exit 1; fi
+PHP_SOCK="unix//run/php/php$PHP_VER-fpm.sock"
+echo "Socket: $PHP_SOCK"
+
+sudo tee -a /etc/caddy/Caddyfile > /dev/null << BLOCK
+
+# -- Trading Desk ------------------------------------------------
+` + domain + ` {
+    root * /var/www/trading-desk
+    encode gzip
+
+    @extensionless {
+        path_regexp ^[^.]+\$
+        not file
+    }
+    rewrite @extensionless {path}.php
+
+    php_fastcgi $PHP_SOCK
+    file_server
+}
+# ----------------------------------------------------------------
+BLOCK
+
+echo "Site block appended to /etc/caddy/Caddyfile"`;
+
+  // -- 7: Start services -----------------------------------------------------
+  C['cmd7'] = DET + `
+if [ -z "$PHP_VER" ]; then echo "ERROR: PHP not found"; exit 1; fi
+
+sudo systemctl enable php$PHP_VER-fpm
+  sudo systemctl restart php$PHP_VER-fpm
+  echo "php$PHP_VER-fpm: $(systemctl is-active php$PHP_VER-fpm)"
+
+sudo caddy validate --config /etc/caddy/Caddyfile
+sudo systemctl reload caddy
+echo "caddy: $(systemctl is-active caddy)"`;
+
+  // -- 8: Firewall -----------------------------------------------------------
+  C['cmd8'] =
+`sudo ufw allow 22/tcp
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+sudo ufw --force enable
+sudo ufw status`;
+
+  // -- 9: Verify -------------------------------------------------------------
+  C['cmd9'] = DET + `
+PHP_VER=\${PHP_VER:-8.3}
+
+echo ""
+echo "=== Verify ==="
+echo "PHP-FPM : $(systemctl is-active php$PHP_VER-fpm)"
+echo "Caddy   : $(systemctl is-active caddy)"
+echo "Git HEAD: $(git -C /var/www/trading-desk rev-parse --short HEAD 2>/dev/null || echo 'n/a')"
+echo ""
+echo "Testing HTTPS endpoint..."
+curl -sk https://` + domain + `/api/auth.php | head -c 200
+echo ""
+echo "Visit: https://` + domain + `"`;
+
+  // -- EA URL ----------------------------------------------------------------
+  C['cmd-ea'] = 'https://' + domain;
+
+  // Render all blocks
+  for (const [id, text] of Object.entries(C)) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = text;
+  }
+  document.getElementById('show-ip').textContent  = ip;
+  document.getElementById('show-url').textContent = 'https://' + domain;
+}
+
+// --- copy to clipboard ----------------------------------------------------
+function cp(id, btn) {
+  const text = document.getElementById(id).textContent;
+  const done = () => {
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1800);
+  };
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text).then(done).catch(() => fallback(text, done));
+  } else {
+    fallback(text, done);
+  }
+}
+function fallback(text, done) {
+  const ta = Object.assign(document.createElement('textarea'),
+    { value: text, style: 'position:fixed;opacity:0' });
+  document.body.appendChild(ta);
+  ta.select();
+  document.execCommand('copy');
+  document.body.removeChild(ta);
+  done();
+}
+
+refresh();
+</script>
+</body>
+</html>
