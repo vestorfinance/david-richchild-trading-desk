@@ -20,8 +20,8 @@ echo "App dir : $APPDIR"
 echo "Branch  : $(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)"
 echo "Before  : $(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
 
-# Pull latest code
-git pull origin main 2>&1
+# Pull latest code (60 s timeout so PHP exec() never hangs)
+timeout 60 git pull origin main 2>&1 || { echo "ERROR: git pull failed or timed out"; exit 1; }
 
 echo "After   : $(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
 
