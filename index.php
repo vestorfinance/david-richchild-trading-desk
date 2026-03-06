@@ -231,17 +231,20 @@ $default_num_trades = intval($usettings_row['default_num_trades'] ?? 1);
     <div id="update-banner" style="display:none;
          background:rgba(245,158,11,0.12);
          border-bottom:1px solid rgba(245,158,11,0.3);
-         padding:.55rem 1rem">
+         padding:.55rem 1rem;transition:opacity .4s">
         <div class="max-w-5xl mx-auto flex items-center justify-between gap-3 flex-wrap">
             <span id="update-banner-msg"
-                  style="color:#fbbf24;font-size:.8rem;font-weight:500">
-                &#128276; Update available
+                  style="color:#fbbf24;font-size:.8rem;font-weight:500;display:flex;align-items:center;gap:.4rem">
+                <!-- icon swapped by JS -->
+                <svg id="update-banner-icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.36-3.36L23 10M1 14l5.13 4.36A9 9 0 0 0 20.49 15"/></svg>
+                <span id="update-banner-text">Update available</span>
             </span>
             <button id="pull-updates-btn" onclick="pullUpdates()"
                 style="background:#b45309;color:#fff;border:none;border-radius:9999px;
                        padding:.35rem 1rem;font-size:.78rem;font-weight:700;
-                       cursor:pointer;white-space:nowrap;transition:opacity .15s">
-                Pull Updates
+                       cursor:pointer;white-space:nowrap;transition:opacity .15s;display:flex;align-items:center;gap:.35rem">
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="8 17 12 21 16 17"/><line x1="12" y1="21" x2="12" y2="3"/></svg>
+                <span id="pull-btn-text">Pull Update</span>
             </button>
         </div>
     </div>
@@ -629,22 +632,35 @@ $default_num_trades = intval($usettings_row['default_num_trades'] ?? 1);
                 if (!data.ok || !data.git_available) return;
                 const banner = document.getElementById('update-banner');
                 if (data.has_update) {
-                    const n  = data.commits_behind || 0;
-                    const label = n ? ` (${n} new commit${n > 1 ? 's' : ''})` : '';
-                    document.getElementById('update-banner-msg').textContent =
-                        '\u{1F514} Update available' + label;
+                    const n = data.commits_behind || 0;
+                    const label = n ? ` — ${n} new commit${n > 1 ? 's' : ''}` : '';
+                    document.getElementById('update-banner-text').textContent = 'Update available' + label;
+                    // restore to update icon in case it was swapped
+                    document.getElementById('update-banner-icon').innerHTML = '<polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.36-3.36L23 10M1 14l5.13 4.36A9 9 0 0 0 20.49 15"/>';
+                    document.getElementById('update-banner-icon').setAttribute('viewBox','0 0 24 24');
+                    banner.style.background = 'rgba(245,158,11,0.12)';
+                    banner.style.borderBottom = '1px solid rgba(245,158,11,0.3)';
+                    document.getElementById('update-banner-msg').style.color = '#fbbf24';
+                    const btn = document.getElementById('pull-updates-btn');
+                    btn.style.display = 'flex';
+                    btn.disabled = false;
+                    btn.style.opacity = '1';
+                    document.getElementById('pull-btn-text').textContent = 'Pull Update';
+                    banner.style.opacity = '1';
                     banner.style.display = 'block';
                 } else {
-                    banner.style.display = 'none';
+                    const banner = document.getElementById('update-banner');
+                    if (banner.dataset.pulled !== '1') banner.style.display = 'none';
                 }
             } catch(e) {}
         }
 
         async function pullUpdates() {
-            const btn = document.getElementById('pull-updates-btn');
-            btn.disabled = true;
-            btn.style.opacity = '0.6';
-            btn.textContent = 'Pulling\u2026';
+            const btn     = document.getElementById('pull-updates-btn');
+            const banner  = document.getElementById('update-banner');
+            btn.disabled  = true;
+            btn.style.opacity = '0.5';
+            document.getElementById('pull-btn-text').textContent = 'Pulling...';
             try {
                 const fd = new FormData();
                 fd.append('api_key', USER_API_KEY);
@@ -652,20 +668,32 @@ $default_num_trades = intval($usettings_row['default_num_trades'] ?? 1);
                 const res  = await fetch('api/update.php', { method: 'POST', body: fd });
                 const data = await res.json();
                 if (data.ok) {
-                    document.getElementById('update-banner').style.display = 'none';
-                    showStatus('success', '&#10003; Update applied &mdash; reloading&hellip;');
-                    setTimeout(() => location.reload(), 2200);
+                    // Show success state in banner, then fade out and reload
+                    banner.dataset.pulled = '1';
+                    banner.style.background    = 'rgba(34,197,94,0.12)';
+                    banner.style.borderBottom  = '1px solid rgba(34,197,94,0.3)';
+                    document.getElementById('update-banner-msg').style.color = '#4ade80';
+                    document.getElementById('update-banner-icon').innerHTML  = '<polyline points="20 6 9 17 4 12"/>';
+                    document.getElementById('update-banner-text').textContent = 'Update applied — reloading...';
+                    btn.style.display = 'none';
+                    setTimeout(() => {
+                        banner.style.opacity = '0';
+                        setTimeout(() => { banner.style.display = 'none'; location.reload(); }, 500);
+                    }, 1800);
                 } else {
-                    showStatus('error', '&#9888; Update failed: ' + (data.error || 'unknown error'));
+                    document.getElementById('update-banner-text').textContent = 'Pull failed — try again';
+                    document.getElementById('update-banner-msg').style.color  = '#f87171';
                     btn.disabled = false;
                     btn.style.opacity = '1';
-                    btn.textContent = 'Pull Updates';
+                    document.getElementById('pull-btn-text').textContent = 'Retry';
+                    showStatus('error', 'Update failed: ' + (data.error || 'unknown error'));
                 }
             } catch(e) {
-                showStatus('error', '&#9888; Network error: ' + e.message);
+                document.getElementById('update-banner-text').textContent = 'Network error — try again';
+                document.getElementById('update-banner-msg').style.color  = '#f87171';
                 btn.disabled = false;
                 btn.style.opacity = '1';
-                btn.textContent = 'Pull Updates';
+                document.getElementById('pull-btn-text').textContent = 'Retry';
             }
         }
 
