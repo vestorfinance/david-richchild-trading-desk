@@ -1,6 +1,9 @@
 # SQLite database (generated at runtime)
 trader.db
 
+# Local install guide — keep on your machine, never deploy to server
+install.html
+
 # Local dev server router (not needed on Apache/Caddy)
 router.php
 
