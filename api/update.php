@@ -24,6 +24,9 @@ $app_dir = realpath(__DIR__ . '/..');
 
 // ── Check for updates ────────────────────────────────────────────────────────
 if ($action === 'check') {
+    // www-data needs a writable HOME for git commands
+    putenv('HOME=/tmp');
+
     // Verify we're inside a git repo and get local HEAD SHA
     exec('git -C ' . escapeshellarg($app_dir) . ' rev-parse HEAD 2>/dev/null', $head_out, $code);
     if ($code !== 0 || empty($head_out[0])) {
@@ -33,41 +36,36 @@ if ($action === 'check') {
     $local = trim($head_out[0]);
 
     // Rate-limit remote checks to once every 5 minutes
-    $cache_file  = sys_get_temp_dir() . '/td_update_check';
-    $cache_data  = file_exists($cache_file) ? json_decode(file_get_contents($cache_file), true) : [];
-    $last_check  = (int) ($cache_data['ts'] ?? 0);
-    $remote      = $cache_data['sha'] ?? '';
+    $cache_file = sys_get_temp_dir() . '/td_update_check';
+    $cache_data = (file_exists($cache_file) && is_readable($cache_file))
+        ? json_decode(file_get_contents($cache_file), true)
+        : [];
+    $last_check = (int) ($cache_data['ts'] ?? 0);
+    $remote     = $cache_data['sha'] ?? '';
 
     if (time() - $last_check > 300 || !$remote) {
-        // Derive GitHub API URL from remote origin
+        // Use curl (exec) — file_get_contents HTTPS is unreliable as www-data
         exec('git -C ' . escapeshellarg($app_dir) . ' config --get remote.origin.url 2>/dev/null', $url_out);
         $origin = trim($url_out[0] ?? '');
         $remote = '';
 
         if (preg_match('#github\.com[:/]([^/]+/[^/]+?)(?:\.git)?$#', $origin, $m)) {
             $api_url = 'https://api.github.com/repos/' . $m[1] . '/commits/main';
-            $ctx     = stream_context_create(['http' => [
-                'header'          => "User-Agent: trading-desk-update-check\r\n",
-                'timeout'         => 6,
-                'ignore_errors'   => true,
-            ]]);
-            $body = @file_get_contents($api_url, false, $ctx);
+            exec(
+                'curl -sf --max-time 8 -H ' . escapeshellarg('User-Agent: trading-desk-update-check') .
+                ' ' . escapeshellarg($api_url) . ' 2>/dev/null',
+                $curl_out
+            );
+            $body = implode('', $curl_out);
             if ($body) {
-                $gh   = json_decode($body, true);
+                $gh     = json_decode($body, true);
                 $remote = $gh['sha'] ?? '';
             }
         }
 
-        // Fallback: git fetch + rev-parse (may fail silently as www-data)
-        if (!$remote) {
-            putenv('HOME=/tmp');
-            exec('git -C ' . escapeshellarg($app_dir) . ' fetch origin 2>/dev/null');
-            exec('git -C ' . escapeshellarg($app_dir) . ' rev-parse origin/main 2>/dev/null', $ro);
-            $remote = trim($ro[0] ?? '');
-        }
-
         if ($remote) {
-            file_put_contents($cache_file, json_encode(['ts' => time(), 'sha' => $remote]));
+            @file_put_contents($cache_file, json_encode(['ts' => time(), 'sha' => $remote]));
+            @chmod($cache_file, 0666);
         }
     }
 
@@ -80,10 +78,11 @@ if ($action === 'check') {
     $commits_behind = 0;
 
     if ($has_update) {
-        // Best-effort commit count via git log comparison
-        exec('git -C ' . escapeshellarg($app_dir) .
-             ' rev-list HEAD..origin/main --count 2>/dev/null', $cnt);
-        $commits_behind = (int) ($cnt[0] ?? 0);
+        exec('curl -sf --max-time 8 -H ' . escapeshellarg('User-Agent: trading-desk-update-check') .
+            ' https://api.github.com/repos/' . $m[1] . '/compare/' . $local . '...' . $remote .
+            ' 2>/dev/null', $cmp_out);
+        $cmp = json_decode(implode('', $cmp_out), true);
+        $commits_behind = (int) ($cmp['behind_by'] ?? 0);
     }
 
     echo json_encode([
