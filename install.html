@@ -129,7 +129,7 @@
   <div class="step">
     <div class="step-header">
       <div class="step-num">2</div>
-      <div class="step-title">Install git &amp; PHP CLI (skips if already installed)</div>
+      <div class="step-title">Install Apache, PHP &amp; git (skips if already installed)</div>
       <span class="badge badge-server">SERVER</span>
     </div>
     <div class="info-box blue">All steps from here run <strong>on the server</strong> inside the SSH session.</div>
@@ -173,7 +173,7 @@
       <div class="step-title">Append Trading Desk site block to Caddyfile</div>
       <span class="badge badge-server">SERVER</span>
     </div>
-    <div class="info-box blue">Uses <strong>tee -a</strong> (append) - existing sites in your Caddyfile are untouched.</div>
+    <div class="info-box blue">Uses <strong>tee -a</strong> (append) &ndash; existing sites in your Caddyfile are untouched. Adds both an <code>http://</code> and <code>https://</code> block &ndash; required if your DNS zone uses <strong>Cloudflare Flexible SSL</strong>.</div>
     <div class="code-block" style="margin-top:0.6rem"><pre id="cmd6"></pre><button class="copy-btn" onclick="cp('cmd6',this)">Copy</button></div>
   </div>
 
@@ -181,7 +181,7 @@
   <div class="step">
     <div class="step-header">
       <div class="step-num">7</div>
-      <div class="step-title">Create PHP service &amp; reload Caddy</div>
+      <div class="step-title">Add Apache vhost &amp; reload services</div>
       <span class="badge badge-server">SERVER</span>
     </div>
     <div class="code-block"><pre id="cmd7"></pre><button class="copy-btn" onclick="cp('cmd7',this)">Copy</button></div>
@@ -238,15 +238,15 @@ function v(id, fb) { return document.getElementById(id).value.trim() || fb; }
 // Inside JS template literals, bash ${VAR} MUST be written \${VAR} so JS
 // does not try to interpolate them as template expressions.
 const DET = [
-  '# Auto-detect installed PHP-FPM version (8.3 / 8.2 / 8.1)',
+  '# Detect installed PHP version (dpkg check, then php CLI fallback)',
   'detect_php() {',
   '  for ver in 8.3 8.2 8.1; do',
-  '    if systemctl list-unit-files php${ver}-fpm.service 2>/dev/null \\',
-  '       | grep -q "php${ver}-fpm"; then',
-  '      echo $ver; return',
+  '    if dpkg -l "php${ver}" 2>/dev/null | grep -q "^ii"; then',
+  '      echo "${ver}"; return',
   '    fi',
   '  done',
-  '  echo ""; return 1',
+  '  command -v php &>/dev/null && php -r "echo PHP_MAJOR_VERSION.chr(46).PHP_MINOR_VERSION;" && return',
+  '  return 1',
   '}',
   'PHP_VER=$(detect_php)',
 ].join('\n');
@@ -264,22 +264,26 @@ function refresh() {
   // -- 1: SSH ----------------------------------------------------------------
   C['cmd1'] = 'ssh ' + user + '@' + ip;
 
-  // -- 2: PHP install / detect -----------------------------------------------
+  // -- 2: Apache + PHP install / detect --------------------------------------
   C['cmd2'] = DET + `
 if [ -z "$PHP_VER" ]; then
-  echo "No PHP found - installing PHP 8.3..."
-  sudo apt update
-  sudo apt install -y software-properties-common
+  echo "No PHP found - installing Apache 2, PHP 8.3 & git..."
+  sudo apt-get update -qq
+  sudo apt-get install -y software-properties-common
   sudo add-apt-repository -y ppa:ondrej/php
-  sudo apt update
-  sudo apt install -y php8.3-cli php8.3-sqlite3 git
+  sudo apt-get update -qq
+  sudo apt-get install -y apache2 php8.3 libapache2-mod-php8.3 php8.3-sqlite3 git
   PHP_VER=8.3
 else
-  echo "PHP $PHP_VER already installed - skipping."
-  sudo apt install -y php$PHP_VER-sqlite3 git 2>/dev/null || true
+  echo "PHP $PHP_VER found - ensuring apache2, sqlite3 & git..."
+  sudo apt-get install -y apache2 php$PHP_VER-sqlite3 git 2>/dev/null || true
 fi
-echo "Using PHP: $PHP_VER"
-php --version
+sudo a2enmod rewrite 2>/dev/null || true
+sudo a2enmod php$PHP_VER 2>/dev/null || true
+grep -q "^Listen 8080" /etc/apache2/ports.conf 2>/dev/null || \\
+  echo "Listen 8080" | sudo tee -a /etc/apache2/ports.conf
+echo "Apache: $(apache2 -v | head -1)"
+php --version | head -1
 git --version`;
 
   // -- 3: Caddy --------------------------------------------------------------
@@ -311,46 +315,51 @@ sudo chmod +x /var/www/trading-desk/update.sh
 sudo -u www-data git config --global safe.directory /var/www/trading-desk
 echo "Permissions OK"`;
 
-  // -- 6: Caddyfile block ----------------------------------------------------
+  // -- 6: Caddyfile blocks (HTTP + HTTPS for Cloudflare Flexible SSL) --------
   C['cmd6'] =
 `sudo tee -a /etc/caddy/Caddyfile > /dev/null << 'BLOCK'
 
-# -- Trading Desk ------------------------------------------------
-` + domain + ` {
+# -- Trading Desk (HTTP - Cloudflare Flexible SSL) -----------------------
+http://` + domain + ` {
     reverse_proxy localhost:8080
     encode gzip
 }
-# ----------------------------------------------------------------
+
+# -- Trading Desk (HTTPS) -----------------------------------------------
+` + domain + ` {
+    reverse_proxy localhost:8080
+    encode gzip
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+    }
+}
+# -----------------------------------------------------------------------
 BLOCK
 
-echo "Site block appended to /etc/caddy/Caddyfile"`;
+echo "Site blocks appended to /etc/caddy/Caddyfile"`;
 
-  // -- 7: Start services -----------------------------------------------------
-  C['cmd7'] = DET + `
-if [ -z "$PHP_VER" ]; then echo "ERROR: PHP not found"; exit 1; fi
-PHP_BIN=$(command -v php$PHP_VER || command -v php)
+  // -- 7: Apache vhost + reload services ------------------------------------
+  C['cmd7'] =
+`# Create Apache vhost for Trading Desk (served on port 8080)
+sudo tee /etc/apache2/sites-available/trading-desk.conf > /dev/null << 'VHOST'
+<VirtualHost *:8080>
+    ServerName ` + domain + `
+    DocumentRoot /var/www/trading-desk
+    <Directory /var/www/trading-desk>
+        AllowOverride All
+        Require all granted
+        Options -Indexes
+    </Directory>
+    ErrorLog \${APACHE_LOG_DIR}/trading-desk-error.log
+    CustomLog \${APACHE_LOG_DIR}/trading-desk-access.log combined
+</VirtualHost>
+VHOST
 
-# Create systemd service for PHP built-in server
-sudo tee /etc/systemd/system/trading-desk.service > /dev/null << BLOCK
-[Unit]
-Description=Trading Desk PHP Server
-After=network.target
-
-[Service]
-User=www-data
-WorkingDirectory=/var/www/trading-desk
-ExecStart=$PHP_BIN -S localhost:8080 router.php
-Restart=always
-RestartSec=3
-
-[Install]
-WantedBy=multi-user.target
-BLOCK
-
-sudo systemctl daemon-reload
-sudo systemctl enable trading-desk
-sudo systemctl restart trading-desk
-echo "trading-desk: $(systemctl is-active trading-desk)"
+sudo a2ensite trading-desk
+sudo apache2ctl configtest && sudo systemctl reload apache2
+echo "apache2: $(systemctl is-active apache2)"
 
 sudo caddy validate --config /etc/caddy/Caddyfile
 sudo systemctl reload caddy
@@ -368,11 +377,11 @@ sudo ufw status`;
   C['cmd9'] =
 `echo ""
 echo "=== Verify ==="
-echo "trading-desk: $(systemctl is-active trading-desk)"
+echo "apache2      : $(systemctl is-active apache2)"
 echo "caddy        : $(systemctl is-active caddy)"
 echo "Git HEAD     : $(git -C /var/www/trading-desk rev-parse --short HEAD 2>/dev/null || echo 'n/a')"
 echo ""
-echo "Testing HTTPS endpoint..."
+echo "Testing endpoint..."
 curl -sk https://` + domain + `/api/auth.php | head -c 200
 echo ""
 echo "Visit: https://` + domain + `"`;
