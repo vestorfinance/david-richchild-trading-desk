@@ -1,0 +1,15 @@
+Options -Indexes
+
+RewriteEngine On
+
+# Remove .php extension:
+# /settings   → /settings.php
+# /api/trade  → /api/trade.php  etc.
+
+# Skip actual files and directories
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+
+# If the request + .php exists, serve it
+RewriteCond %{REQUEST_FILENAME}.php -f
+RewriteRule ^(.+)$ $1.php [L,QSA]
