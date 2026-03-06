@@ -52,7 +52,7 @@ if ($action === 'check') {
         if (preg_match('#github\.com[:/]([^/]+/[^/]+?)(?:\.git)?$#', $origin, $m)) {
             $api_url = 'https://api.github.com/repos/' . $m[1] . '/commits/main';
             exec(
-                'curl -sf --max-time 8 -H ' . escapeshellarg('User-Agent: trading-desk-update-check') .
+                '/usr/bin/curl -sf --max-time 8 -H ' . escapeshellarg('User-Agent: trading-desk-update-check') .
                 ' ' . escapeshellarg($api_url) . ' 2>/dev/null',
                 $curl_out
             );
@@ -78,7 +78,7 @@ if ($action === 'check') {
     $commits_behind = 0;
 
     if ($has_update) {
-        exec('curl -sf --max-time 8 -H ' . escapeshellarg('User-Agent: trading-desk-update-check') .
+        exec('/usr/bin/curl -sf --max-time 8 -H ' . escapeshellarg('User-Agent: trading-desk-update-check') .
             ' https://api.github.com/repos/' . $m[1] . '/compare/' . $local . '...' . $remote .
             ' 2>/dev/null', $cmp_out);
         $cmp = json_decode(implode('', $cmp_out), true);
