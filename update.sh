@@ -6,6 +6,10 @@
 
 set -e
 
+# Ensure git has a writable HOME when run as www-data via PHP exec()
+export HOME=/tmp
+export GIT_CONFIG_NOSYSTEM=1
+
 APPDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$APPDIR"
 
