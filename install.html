@@ -317,6 +317,8 @@ sudo -u www-data git config --global safe.directory /var/www/trading-desk
 # Allow www-data to run the update script without a password (required for UI updates)
 echo "www-data ALL=(ALL) NOPASSWD: /var/www/trading-desk/update.sh, /bin/bash /var/www/trading-desk/update.sh" \\
   | sudo tee /etc/sudoers.d/trading-desk-update
+echo "Defaults!/var/www/trading-desk/update.sh !requiretty" \\
+  | sudo tee -a /etc/sudoers.d/trading-desk-update
 sudo chmod 440 /etc/sudoers.d/trading-desk-update
 echo "Permissions OK"`;
 
