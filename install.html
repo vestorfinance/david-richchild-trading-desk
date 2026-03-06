@@ -313,6 +313,11 @@ sudo chmod -R 755 /var/www/trading-desk
 sudo chmod 775 /var/www/trading-desk
 sudo chmod +x /var/www/trading-desk/update.sh
 sudo -u www-data git config --global safe.directory /var/www/trading-desk
+
+# Allow www-data to run the update script without a password (required for UI updates)
+echo "www-data ALL=(ALL) NOPASSWD: /var/www/trading-desk/update.sh" \\
+  | sudo tee /etc/sudoers.d/trading-desk-update
+sudo chmod 440 /etc/sudoers.d/trading-desk-update
 echo "Permissions OK"`;
 
   // -- 6: Caddyfile blocks (HTTP + HTTPS for Cloudflare Flexible SSL) --------
