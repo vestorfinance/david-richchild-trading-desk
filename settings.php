@@ -387,6 +387,44 @@ $current_user = $stmt->fetch();
             </div>
         </div>
 
+        <!-- ── Download EA ─────────────────────────────────────────────── -->
+        <div class="card overflow-hidden">
+            <button type="button" onclick="toggleSection('download-ea-body', this)"
+                class="w-full flex items-center justify-between px-5 py-4 text-left"
+                style="background:transparent;border:none;cursor:pointer;">
+                <span class="font-semibold text-base">Download EA</span>
+                <svg id="download-ea-chevron" xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 transition-transform duration-200" style="color:var(--text-secondary);transform:rotate(-90deg)" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
+                </svg>
+            </button>
+            <div id="download-ea-body" class="hidden px-5 pb-5 pt-4 space-y-3" style="border-top:1px solid var(--border)">
+                <p class="text-xs" style="color:var(--text-secondary)">Download the Expert Advisor files to install in MetaTrader 5.</p>
+                <div class="flex flex-col sm:flex-row gap-3">
+                    <!-- MQ5 source -->
+                    <a href="download.php?file=mq5"
+                        class="btn btn-accent flex-1 justify-center"
+                        style="text-decoration:none">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V4"/>
+                        </svg>
+                        TradingDeskEA.mq5
+                    </a>
+                    <!-- EX5 compiled -->
+                    <a href="download.php?file=ex5"
+                        class="btn btn-ghost flex-1 justify-center"
+                        style="text-decoration:none">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V4"/>
+                        </svg>
+                        TradingDeskEA.ex5
+                    </a>
+                </div>
+                <p class="text-xs" style="color:var(--text-secondary)">
+                    Place <code>.mq5</code> in <code>MQL5/Experts/</code> and compile, or drop the <code>.ex5</code> directly into <code>MQL5/Experts/</code>.
+                </p>
+            </div>
+        </div>
+
         <!-- ── Instruments list ────────────────────────────────────────── -->
         <div class="card overflow-hidden">
             <div class="px-5 py-4 border-b" style="border-color:var(--border)">

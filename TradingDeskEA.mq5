@@ -563,6 +563,16 @@ void ExecuteGoodPriceTrade(int idx, int &total_pos)
    if (!MQLInfoInteger(MQL_TRADE_ALLOWED))             return;
    if (AccountInfoInteger(ACCOUNT_TRADE_EXPERT) == 0)  return;
    if (!SymbolInfoInteger(g_series[idx].broker_sym, SYMBOL_TRADE_MODE)) return;
+   if (AccountInfoDouble(ACCOUNT_MARGIN_FREE) <= 0)     return; // no funds – skip without retrying; retries next tick when margin recovers
+
+   // General series-alive guard: if no open positions remain for this series it has ended – deactivate and abort
+   ENUM_POSITION_TYPE gp_pos_type = (g_series[idx].direction == "buy") ? POSITION_TYPE_BUY : POSITION_TYPE_SELL;
+   if (CountSeriesPositions(g_series[idx].broker_sym, gp_pos_type) == 0)
+   {
+      g_series[idx].active = false;
+      Print("Good price series ended (no open positions): ", g_series[idx].direction, " ", g_series[idx].broker_sym);
+      return;
+   }
 
    MqlTradeRequest request = {};
    MqlTradeResult  res     = {};
@@ -677,7 +687,7 @@ void ProcessDelayedTrades()
       req.comment      = "TradingDesk D" + IntegerToString(g_delayed[i].remaining);
 
       MqlTradeCheckResult check = {};
-      if (!OrderCheck(req, check)) continue;
+      if (!OrderCheck(req, check)) { g_delayed[i].next_fire = TimeCurrent() + 5; continue; } // back off 5s on no-margin
       if (!OrderSend(req, res))    continue;
 
       Print("Delayed trade: ", g_delayed[i].direction, " ", g_delayed[i].lot, " ", sym,

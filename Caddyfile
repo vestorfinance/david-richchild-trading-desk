@@ -1,0 +1,35 @@
+﻿arrissadata.com {
+    reverse_proxy localhost:8080
+    encode gzip
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+    }
+}
+
+task.arrissadata.com {
+    tls internal
+    reverse_proxy localhost:5678
+    encode gzip
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+    }
+}
+
+http://desk.arrissa.trade {
+    reverse_proxy localhost:8080
+    encode gzip
+}
+
+desk.arrissa.trade {
+    reverse_proxy localhost:8080
+    encode gzip
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+    }
+}
